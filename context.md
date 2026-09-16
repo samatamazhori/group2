@@ -1,7 +1,8 @@
 # Project 
 This Project is for cataloging the entire dynamical behhaviour
 of the following system:
-
+this is python project use numpy and matplotlib mostly we may and 
+if the need arises then we could add stuff to it.
 
 \begin{align}
     \dot{x} &= x [(c-4) y-5 \mu +4 \mu  (x+y)+x (x+3 y-3)+2] \\
