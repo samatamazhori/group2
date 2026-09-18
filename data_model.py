@@ -438,13 +438,17 @@ class Boundary(BaseObject):
 # ── Region ───────────────────────────────────────────────────────────────────
 
 class Region(BaseObject):
-    """A region of the μ-c plane defined by the sign of one or more curves.
+    """A region of the μ-c plane defined by the sign of one or more curves,
+    optionally refined by inequality constraints on μ or c.
 
     Parameters
     ----------
     name : str
     signs : dict
         ``{Curve: +1 or -1}`` — the sign that *F*(μ, c) takes inside the region.
+    constraints : list of Constraint, optional
+        Additional inequality bounds (e.g. ``μ < 2/5``) that distinguish
+        regions with identical sign signatures.
     vertices : list of Point, optional
         Corner points from intersecting boundary curves.
     boundary_arcs : list of Arc, optional
@@ -454,14 +458,16 @@ class Region(BaseObject):
     metadata : dict, optional
     """
 
-    def __init__(self, name, signs=None, vertices=None,
+    def __init__(self, name, signs=None, constraints=None, vertices=None,
                  boundary_arcs=None, test_point=None, metadata=None):
         super().__init__(name=name, metadata=metadata)
         self._signs = dict(signs or {})
+        self._constraints = list(constraints or [])
         self._vertices = list(vertices or [])
         self._boundary_arcs = list(boundary_arcs or [])
         self._test_point = test_point
         self._metadata['signs'] = self._signs
+        self._metadata['constraints'] = self._constraints
         self._metadata['vertices'] = self._vertices
         self._metadata['boundary_arcs'] = self._boundary_arcs
         self._metadata['test_point'] = test_point
@@ -469,6 +475,10 @@ class Region(BaseObject):
     @property
     def signs(self):
         return self._signs
+
+    @property
+    def constraints(self):
+        return self._constraints
 
     @property
     def vertices(self):
@@ -490,16 +500,21 @@ class Region(BaseObject):
     # ── containment ─────────────────────────────────────────────────────────
 
     def contains(self, mu, c, tol=1e-10):
-        """Check whether (μ, c) satisfies all sign conditions of this region.
+        """Check whether (μ, c) satisfies all sign conditions and constraints
+        of this region.
 
         Returns ``True`` if *F*(μ, c) has the correct sign for every curve
-        in ``self.signs`` (within tolerance).
+        in ``self.signs`` (within tolerance) **and** every ``Constraint``
+        in ``self.constraints`` evaluates to ``True``.
         """
         for curve, sign in self._signs.items():
             val = curve(mu, c)
             if sign > 0 and val <= -tol:
                 return False
             if sign < 0 and val >= tol:
+                return False
+        for constraint in self._constraints:
+            if not constraint(mu, c):
                 return False
         return True
 
@@ -508,8 +523,13 @@ class Region(BaseObject):
     def __repr__(self):
         tag = f' "{self._name}"' if self._name else ''
         n_curves = len(self._signs)
+        n_cons = len(self._constraints)
         n_verts = len(self._vertices)
-        return f'<Region{tag}: {n_curves} signs, {n_verts} vertices>'
+        parts = [f'{n_curves} signs']
+        if n_cons:
+            parts.append(f'{n_cons} constraints')
+        parts.append(f'{n_verts} vertices')
+        return f'<Region{tag}: {", ".join(parts)}>'
 
     def __str__(self):
         lines = [f'Region: {self._name or "(unnamed)"}']
@@ -517,6 +537,10 @@ class Region(BaseObject):
             lines.append('  signs:')
             for curve, sgn in self._signs.items():
                 lines.append(f'    {curve.name or "?"} → {"+" if sgn > 0 else "-"}')
+        if self._constraints:
+            lines.append('  constraints:')
+            for con in self._constraints:
+                lines.append(f'    {con}')
         if self._vertices:
             lines.append(f'  vertices ({len(self._vertices)}):')
             for p in self._vertices:
