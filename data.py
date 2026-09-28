@@ -8,7 +8,7 @@ Intersections I12..I56 with named points and symbolic metadata.
 import sympy as sp
 import numpy as np
 
-from data_model import Curve, Point, Intersection
+from data_model import Curve, Point, Intersection, InfinityPoint
 
 # ── symbols used by all expressions ─────────────────────────────────────────
 
@@ -25,7 +25,7 @@ C1 = Curve(
     symbols=(mu, c),
     metadata={
         'role': 'Delta of Q',
-        'label': 'Δ₁',
+        'label': 'Δ_Q',
         'color': '#1f77b4',
         'linestyle': '-',
         'linewidth': 2,
@@ -97,7 +97,36 @@ C6 = Curve(
     },
 )
 
-CURVES = [C1, C2, C3, C4, C5, C6]
+
+C7 = Curve(
+    expr=mu - 1,
+    name='C7',
+    symbols=(mu, c),
+    metadata={
+        'role': "B sol degenarcy",
+        'label': 'μ = 1',
+        'color': '#e377c2',
+        'linestyle': '-',
+        'linewidth': 2,
+    },
+)
+
+C8 = Curve(
+    expr=(4 + c**3 - 52*mu + 165*mu**2 - 100*mu**3 + 64*mu**4
+           - 3*c**2*(1 + 2*mu)
+           + c*(-8 + 50*mu - 55*mu**2 + 16*mu**3)),
+    name='C8',
+    symbols=(mu, c),
+    metadata={
+        'role': "Hopf curve / TrB numerator",
+        'label': 'S',
+        'color': '#2ca02c',
+        'linestyle': '--',
+        'linewidth': 2,
+    },
+)
+
+CURVES = [C1, C2, C3, C4, C5, C6, C7]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -270,7 +299,54 @@ I56 = Intersection(
     metadata={'certificate': 'symbolic', 'curves_label': 'C5 ∩ C6'},
 )
 
-INTERSECTIONS = [I12, I15, I16, I23, I24, I25, I26, I34, I35, I45, I46, I56]
+# ── C2 ∩ C7 (2 pts, symbolic) ──────────────────────────────────────────────
+I27 = Intersection(
+    curves=(C2, C7),
+    points=[
+        Point(1.0, 4 - np.sqrt(13), name='I27_P1',
+              metadata={
+                  'label': 'P₁',
+                  'symbolic': 'μ = 1, c = 4 - √13',
+              }),
+        Point(1.0, 4 + np.sqrt(13), name='I27_P2',
+              metadata={
+                  'label': 'P₂',
+                  'symbolic': 'μ = 1, c = 4 + √13',
+              }),
+    ],
+    name='I27',
+    metadata={'certificate': 'symbolic', 'curves_label': 'C2 ∩ C7'},
+)
+
+# ── C4 ∩ C7 (1 pt, symbolic) ───────────────────────────────────────────────
+I47 = Intersection(
+    curves=(C4, C7),
+    points=[
+        Point(1.0, 3.0, name='I47_P1',
+              metadata={
+                  'label': 'P₁',
+                  'symbolic': 'μ = 1, c = 3',
+              }),
+    ],
+    name='I47',
+    metadata={'certificate': 'symbolic', 'curves_label': 'C4 ∩ C7'},
+)
+
+# ── C5 ∩ C7 (1 pt, symbolic) ───────────────────────────────────────────────
+I57 = Intersection(
+    curves=(C5, C7),
+    points=[
+        Point(1.0, 0.0, name='I57_P1',
+              metadata={
+                  'label': 'P₁',
+                  'symbolic': 'μ = 1, c = 0',
+              }),
+    ],
+    name='I57',
+    metadata={'certificate': 'symbolic', 'curves_label': 'C5 ∩ C7'},
+)
+
+INTERSECTIONS = [I12, I15, I16, I23, I24, I25, I26, I27, I34, I35, I45, I46, I47, I56, I57]
 
 
 # ── convenience: flat list of all points (for plotting) ─────────────────────
@@ -278,3 +354,28 @@ INTERSECTIONS = [I12, I15, I16, I23, I24, I25, I26, I34, I35, I45, I46, I56]
 ALL_POINTS = []
 for ix in INTERSECTIONS:
     ALL_POINTS.extend(ix.points)
+
+
+# ── Infinity Points (box-edge crossings for C1–C7) ──────────────────────────
+"""
+Each InfinityPoint represents where a curve crosses the box boundary.
+The curve + edge + index triplet uniquely identifies the crossing.
+Change the box and the (\u03bc,c) recomputes automatically.
+"""
+
+from box_utils import edge_intersections, BOX as _BOX
+
+INFINITY_POINTS = []
+for _curve in [C1, C2, C3, C4, C5, C6, C7]:
+    _pts = edge_intersections(_curve, _BOX)
+    _edge_counts = {}
+    for _p in _pts:
+        _e = _p.metadata['edge']
+        _idx = _edge_counts.get(_e, 0)
+        _suffix = '' if _idx == 0 else f'_{_idx}'
+        _ip = InfinityPoint(
+            _curve, _e, index=_idx, box=_BOX,
+            name=f'{_curve.name}_inf_{_e}{_suffix}',
+        )
+        INFINITY_POINTS.append(_ip)
+        _edge_counts[_e] = _idx + 1

@@ -11,9 +11,12 @@ import numpy as np
 import sympy as sp
 
 from data_model import (
-    BaseObject, Curve, Constraint, Point,
+    BaseObject, Curve, Constraint, Point, InfinityPoint,
     Intersection, Arc, Region, Boundary,
 )
+
+# Curves with simple shapes for InfinityPoint tests
+from data import C2, C3, C4, C5
 
 passed = 0
 failed = 0
@@ -175,6 +178,89 @@ check('point attr → metadata mu', p.mu == 0.6)
 
 p2 = Point(0.0, 0.0)
 check('point (0,0) repr', 'μ=0.0' in repr(p2) and 'c=0.0' in repr(p2))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4b.  InfinityPoint
+# ══════════════════════════════════════════════════════════════════════════════
+print('\n── InfinityPoint ──')
+
+# C5: c = 0  (horizontal line).  Crosses left edge at (-2.5, 0)
+#            and right edge at (2.0, 0).  Does not cross top/bottom.
+inf_left = InfinityPoint(C5, 'left', name='C5_inf_left')
+check('inf left mu = -2.5', abs(inf_left.mu - (-2.5)) < 1e-10)
+check('inf left c = 0', abs(inf_left.c) < 1e-10)
+check('inf left is_at_infinity', inf_left.is_at_infinity is True)
+check('inf left curve is C5', inf_left.curve is C5)
+check('inf left edge', inf_left.edge == 'left')
+
+# Right edge of C5
+inf_right = InfinityPoint(C5, 'right', name='C5_inf_right')
+check('inf right mu = 2.0', abs(inf_right.mu - 2.0) < 1e-10)
+check('inf right c = 0', abs(inf_right.c) < 1e-10)
+
+# C3: μ = 2/5 = 0.4  (vertical line).  Crosses bottom at (0.4, -0.75)
+#            and top at (0.4, 7.5).
+inf_bottom = InfinityPoint(C3, 'bottom', name='C3_inf_bottom')
+check('inf bottom mu = 0.4', abs(inf_bottom.mu - 0.4) < 1e-10)
+check('inf bottom c = -0.75', abs(inf_bottom.c - (-0.75)) < 1e-10)
+
+inf_top = InfinityPoint(C3, 'top', name='C3_inf_top')
+check('inf top mu = 0.4', abs(inf_top.mu - 0.4) < 1e-10)
+check('inf top c = 7.5', abs(inf_top.c - 7.5) < 1e-10)
+
+# Edge with no crossing → nan
+inf_none = InfinityPoint(C5, 'top', name='C5_inf_top')
+check('inf no-crossing mu is nan', np.isnan(inf_none.mu))
+check('inf no-crossing c is nan', np.isnan(inf_none.c))
+
+# C4: c = μ + 2  (diagonal).  Crosses left edge at (-2.5, -0.5).
+inf_c4 = InfinityPoint(C4, 'left', name='C4_inf_left')
+check('C4 inf left mu = -2.5', abs(inf_c4.mu - (-2.5)) < 1e-10)
+check('C4 inf left c = -0.5', abs(inf_c4.c - (-0.5)) < 1e-10)
+
+# ── custom box ──────────────────────────────────────────────────────────────
+# Shrink box to (-1, 1, -1, 3). C5 left edge should now be at (-1, 0).
+zoom_box = (-1.0, 1.0, -1.0, 3.0)
+inf_zoom = InfinityPoint(C5, 'left', box=zoom_box, name='C5_zoom')
+check('zoom box mu = -1.0', abs(inf_zoom.mu - (-1.0)) < 1e-10)
+check('zoom box c = 0', abs(inf_zoom.c) < 1e-10)
+
+# ── change box after construction ───────────────────────────────────────────
+inf_left.box = zoom_box
+check('after box setter mu = -1.0', abs(inf_left.mu - (-1.0)) < 1e-10)
+check('after box setter c = 0', abs(inf_left.c) < 1e-10)
+
+# ── index parameter (multiple crossings on same edge) ───────────────────────
+# C2 crosses the left edge once (index 0).  Index > 0 should be nan.
+inf_c2 = InfinityPoint(C2, 'left', index=0, name='C2_inf_left')
+check('C2 left index=0 mu finite', np.isfinite(inf_c2.mu))
+check('C2 left index=0 c finite', np.isfinite(inf_c2.c))
+
+inf_c2_bad = InfinityPoint(C2, 'left', index=99, name='C2_inf_left_bad')
+check('C2 left index=99 mu is nan', np.isnan(inf_c2_bad.mu))
+check('C2 left index=99 c is nan', np.isnan(inf_c2_bad.c))
+
+# ── repr / str ──────────────────────────────────────────────────────────────
+rep = repr(inf_left)
+check('repr contains InfinityPoint', 'InfinityPoint' in rep)
+check('repr contains curve name', 'C5' in rep)
+check('repr contains edge', 'left' in rep)
+
+s = str(inf_left)
+check('str contains InfinityPoint', 'InfinityPoint' in s)
+check('str contains mu,c', 'μ=' in s and 'c=' in s)
+
+# ── default box (auto-picked from box_utils) ────────────────────────────────
+def_inf = InfinityPoint(C5, 'left')
+check('default box gives mu=-2.5', abs(def_inf.mu - (-2.5)) < 1e-10)
+
+# ── works as Arc endpoint (duck-type compatible) ────────────────────────────
+p = Point(0.5, 1.0, name='P1')
+arc_with_inf = Arc(curve=C5, start=inf_left, end=p, name='test_arc')
+check('Arc with InfinityPoint start', 'test_arc' in repr(arc_with_inf))
+check('Arc start preserved', arc_with_inf.start is inf_left)
+check('Arc end preserved', arc_with_inf.end is p)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

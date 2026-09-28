@@ -326,6 +326,124 @@ class Point(BaseObject):
         return f'Point: (μ={self._mu}, c={self._c})'
 
 
+# ── InfinityPoint ───────────────────────────────────────────────────────────
+
+class InfinityPoint(BaseObject):
+    """A point at the boundary of a bounding box, on a specific curve.
+
+    ``InfinityPoint`` represents the *concept* of an arc endpoint that
+    extends "to infinity" in the parameter plane.  Concretely, it wraps
+    the coordinate where a curve crosses one of the four edges of the
+    current bounding box.
+
+    When the box changes (e.g. zooming into a region), the (μ, c)
+    coordinates are recomputed automatically by calling
+    :func:`box_utils.edge_intersections`.  This means you can define
+    arcs once with InfinityPoint endpoints, then re-project them onto
+    any viewport without changing the arc definitions.
+
+    Parameters
+    ----------
+    curve : Curve
+        The curve this point lies on.
+    edge : str
+        Which box edge: ``'top'``, ``'bottom'``, ``'left'``, or ``'right'``.
+    index : int, optional
+        Which crossing on that edge, if the curve crosses the same edge
+        multiple times (default 0).
+    box : tuple of 4 floats, optional
+        ``(mu_min, mu_max, c_min, c_max)``.  Defaults to the global
+        ``BOX`` from ``box_utils``.
+    name : str, optional
+    metadata : dict, optional
+    """
+
+    def __init__(self, curve, edge, index=0, box=None,
+                 name=None, metadata=None):
+        super().__init__(name=name, metadata=metadata)
+        self._curve = curve
+        self._edge = edge
+        self._index = index
+        self._box = box  # resolved lazily on first _compute to avoid
+                         # circular imports at class-load time
+        self._mu = np.nan
+        self._c = np.nan
+        self._compute()
+
+    # ── internal ────────────────────────────────────────────────────────────
+
+    def _compute(self):
+        """Resolve (μ, c) by finding where the curve crosses the box edge."""
+        # Lazy import avoids circular dependency:
+        #   data_model → box_utils → data_model (for Point)
+        from box_utils import edge_intersections, BOX as default_box
+
+        if self._box is None:
+            self._box = default_box
+
+        pts = edge_intersections(self._curve, self._box)
+        edge_pts = [p for p in pts
+                    if p.metadata.get('edge') == self._edge]
+
+        if self._index < len(edge_pts):
+            p = edge_pts[self._index]
+            self._mu = p.mu
+            self._c = p.c
+        else:
+            self._mu = np.nan
+            self._c = np.nan
+
+    # ── properties ──────────────────────────────────────────────────────────
+
+    @property
+    def mu(self):
+        """μ-coordinate (recomputed for the current box)."""
+        return self._mu
+
+    @property
+    def c(self):
+        """c-coordinate (recomputed for the current box)."""
+        return self._c
+
+    @property
+    def curve(self):
+        """The curve this point belongs to."""
+        return self._curve
+
+    @property
+    def edge(self):
+        """Which box edge this point sits on."""
+        return self._edge
+
+    @property
+    def box(self):
+        """The current bounding box."""
+        return self._box
+
+    @box.setter
+    def box(self, box):
+        """Set a new bounding box and recompute coordinates."""
+        self._box = box
+        self._compute()
+
+    @property
+    def is_at_infinity(self):
+        """Always ``True`` — this point is on the box boundary."""
+        return True
+
+    # ── display ─────────────────────────────────────────────────────────────
+
+    def __repr__(self):
+        tag = f' "{self._name}"' if self._name else ''
+        return (f'<InfinityPoint{tag}: {self._curve.name} × {self._edge}'
+                f' ({self._mu:.6g}, {self._c:.6g})>')
+
+    def __str__(self):
+        return (f'InfinityPoint: {self._name or "(unnamed)"} — '
+                f'{self._curve.name} × {self._edge} → '
+                f'(μ={self._mu:.6g}, c={self._c:.6g})')
+
+
 # ── Intersection ─────────────────────────────────────────────────────────────
 
 class Intersection(BaseObject):
